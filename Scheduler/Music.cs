@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace Scheduler
 {
-    public class Music : IContent,IComparable
+    public class Music : IContent
     {
         private readonly string _title;
         private readonly int _durationtominute;
@@ -39,9 +39,6 @@ namespace Scheduler
             return _playing ? _title : "No Music is being played";
         }
 
-        int IComparable.CompareTo(object? obj)
-        {
-            throw new NotImplementedException();
-        }
+       
     }
 }

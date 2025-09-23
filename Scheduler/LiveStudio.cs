@@ -13,7 +13,8 @@ namespace Scheduler
         private bool _playing;
         private const string Studio1 = "Studio1 ";
         private const string Studio2 = "Studio2 ";
-
+        public string Host { get; set; }
+        public List<string> Guests { get; set; } = new List<string>();
 
 
 
@@ -26,7 +27,7 @@ namespace Scheduler
 
 
         }
-        public LiveStudio(string title, int durationtinminute, bool playing)
+        public LiveStudio(string title, int durationtinminute, bool playing = true )
         {
             _title = title;
             _durationtinminute = durationtinminute;
