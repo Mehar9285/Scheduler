@@ -10,7 +10,9 @@ namespace Scheduler
     
         public class ScheduleService : IScheduleService
         {
-            private readonly WeekSchedule _weekSchedule;
+        
+
+        private readonly WeekSchedule _weekSchedule;
             private int _nextId = 1;
 
             public ScheduleService()
@@ -42,7 +44,7 @@ namespace Scheduler
                 {
                     var schedule = new Schedule
                     {
-                        Id = _nextId++, // assign unique int ID
+                        Id = _nextId++, 
                         Content = content,
                         StartTime = startTime,
                         EndTime = startTime.AddMinutes(content.DurationInMinutes())
