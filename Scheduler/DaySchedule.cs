@@ -9,29 +9,29 @@ namespace Scheduler
 {
     public class DaySchedule
     {
-        public List<Schedule> Items { get; set; } = new List<Schedule>(); //list of all schedule items
-        public DateTime Datee { get; set; } // date of this day
-        public DaySchedule(DateTime date) //constructor to pass a date when a new schedule is created
+        public List<Schedule> Items { get; set; } = new List<Schedule>(); 
+        public DateTime Datee { get; set; } 
+        public DaySchedule(DateTime date) 
         {
             Datee = date;
 
         }
-        // Add Content and its specific time to the schedule
+        
         public void Add(IContent content, DateTime startTime)
         {
             var item = new Schedule();
-            item.Content = content; // The content
-            item.StartTime = startTime; // The start time
+            item.Content = content;
+            item.StartTime = startTime; 
             item.EndTime = startTime.AddMinutes(content.DurationInMinutes());// Take the length of the program and add that as minutes to the start time to get the end time
-            Items.Add(item); // Add  new items to the list
+            Items.Add(item); 
         }
-        // No gap exists by filling music
+        
         public void AutoFillTheMusic()
         {
-            Items = Items.OrderBy(content => content.StartTime).ToList(); // Ensue that the items in the list are in order
+            Items = Items.OrderBy(content => content.StartTime).ToList(); 
             DateTime current = Datee.Date;
             DateTime endOfDay = current.AddDays(1);
-            List<Schedule> newitems = new List<Schedule>(); // New list to store gap free schedule
+            List<Schedule> newitems = new List<Schedule>(); 
             foreach (var item in Items)
             {
                 if (item.StartTime > current)

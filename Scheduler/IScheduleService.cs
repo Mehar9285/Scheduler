@@ -16,6 +16,6 @@ namespace Scheduler
         bool DeleteEvent(int eventId);
         bool AddHost(int eventId, string hostName);
         bool AddGuest(int eventId, string guestName);
-
+        
     }
 }
