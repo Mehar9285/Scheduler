@@ -3,9 +3,12 @@ import { Navbar, Nav, Container, Form, Button, Dropdown } from "react-bootstrap"
 import { Link } from "react-router-dom";
 import { FaSearch, FaHeadphones, FaRegHeart } from "react-icons/fa";
 import { useStore } from "../store/useStore";
+import { logout } from "../api";
+import { useNavigate } from "react-router-dom";
+
 
 export default function RadioNavbar() {
- 
+ const navigate = useNavigate();
   const [search, setSearch] = useState("");
   
   const myList = useStore((s) => s.myList);
@@ -15,7 +18,19 @@ export default function RadioNavbar() {
   const onSearch = (e) => {
     e.preventDefault();
     console.log("Searching for:", search);
-  };
+
+    
+    };
+
+const handleLogout = async () => {
+  try {
+    await logout();
+    navigate("/login");
+  } catch (err) {
+    console.error("Logout failed", err);
+  }
+};
+  
 
   return (
    <Navbar expand="lg" variant="dark" className="radio-navbar">
@@ -63,8 +78,29 @@ export default function RadioNavbar() {
               ))}
             </Dropdown.Menu>
           </Dropdown>
+
+           <Nav.Item className="ms-3">
+          <Link to="/login" className="btn btn-warning fw-bold">
+              Login
+             </Link>
+             </Nav.Item>
+
+             <Nav.Item className="ms-2">
+  <button
+    onClick={handleLogout}
+    className="btn btn-danger fw-bold"
+  >
+    Logout
+  </button>
+</Nav.Item>
+
+
         </Navbar.Collapse>
       </Container>
     </Navbar>
   );
+          
+               
+         
+       
 }

@@ -1,27 +1,52 @@
 using API;
 using API.Requests;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Scheduler;
+using System.Security.Claims;
+using static System.Net.WebRequestMethods;
 
 var builder = WebApplication.CreateBuilder(args);
 
-
-builder.Services.AddDbContext<RadioDbContext>(options =>
-    options.UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection")));
 
 
 builder.Services.AddScoped<IScheduleService, ScheduleService>();
 
 
+
+
+
+
+builder.Services.AddIdentityApiEndpoints<IdentityUser>()
+    .AddEntityFrameworkStores<RadioDbContext>();
+
+builder.Services.ConfigureApplicationCookie(options =>
+{
+    options.Cookie.HttpOnly = true;
+    options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+    options.Cookie.SameSite = SameSiteMode.None;
+
+    options.LoginPath = "/login";
+    options.AccessDeniedPath = "/access-denied";
+    
+}
+);
+
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+builder.Services.AddDbContext<RadioDbContext>(options =>
+    options.UseSqlite("Data Source=radio.db"));
+builder.Services.AddControllers();
+builder.Services.AddAuthorization();
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowReactApp", policy =>
         policy.WithOrigins("http://localhost:5173")
               .AllowAnyHeader()
-              .AllowAnyMethod());
+              .AllowAnyMethod()
+              .AllowCredentials());
 });
 
 var app = builder.Build();
@@ -54,9 +79,19 @@ using (var scope = app.Services.CreateScope())
         scheduler.AddEvent(s.Date, content, s.StartTime);
     }
 }
+app.UseCors("AllowReactApp");
+app.UseAuthentication(); 
+app.UseAuthorization();
+app.MapIdentityApi<IdentityUser>();
 
+app.MapPost("/logout", async (SignInManager<IdentityUser> signInManager)=>
 
-
+{
+    await signInManager.SignOutAsync();
+    return Results.Ok();
+})
+.RequireAuthorization()
+.WithOpenApi();
 
 
 app.MapGet("/", () => "Radio Station Scheduler");
@@ -170,24 +205,49 @@ app.MapGet("/schedule/{id:int}", ([FromServices] IScheduleService scheduler, int
     return Results.Ok(dto);
 });
 
+app.MapPost("/schedule/add",
+    async (
+        [FromServices] IScheduleService scheduler,
+        [FromServices] RadioDbContext db,
+        HttpContext http,
+        [FromBody] AddEventRequest request
+    ) =>
+    {
+        var userId = http.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (string.IsNullOrEmpty(userId))
+            return Results.Unauthorized();
 
-app.MapPost("/schedule/add", 
-    async ([FromServices] IScheduleService scheduler, [FromServices] RadioDbContext db, [FromBody] AddEventRequest request) 
-    => { IContent content = request.ContentType.ToLower() 
-        switch { "music" => new Music(request.Name, 30, true), 
-            "prerecording" => new PreRecording(request.Name, 45, true), 
-            "studio" => new LiveStudio(request.Name, 60, true), 
-            _ => throw new ArgumentException("Invalid content type") };
-        scheduler.AddEvent(request.Date, content, request.StartTime); 
-        db.Schedules.Add(new ScheduleEntity { Title = request.Name, ContentType = request.ContentType.ToLower(),
-            Date = request.Date.Date, 
-            StartTime = request.StartTime, 
-            EndTime = request.StartTime.AddMinutes(content.DurationInMinutes()), 
-            Host = content is LiveStudio studio ? studio.Host : null,
-            Guests = content is LiveStudio studio2 ? string.Join(", ", studio2.Guests) : null }); 
-        await db.SaveChangesAsync(); return Results.Ok("Event added"); 
-    });
+        var contributor = await db.Contributors
+            .FirstOrDefaultAsync(c => c.IdentityUserId == userId);
 
+        if (contributor == null)
+            return Results.BadRequest("Contributor not registered");
+
+        IContent content = request.ContentType.ToLower() switch
+        {
+            "music" => new Music(request.Name, 30, true),
+            "prerecording" => new PreRecording(request.Name, 45, true),
+            "studio" => new LiveStudio(request.Name, 60, true),
+            _ => throw new ArgumentException("Invalid content type")
+        };
+
+        scheduler.AddEvent(request.Date, content, request.StartTime);
+
+        db.Schedules.Add(new ScheduleEntity
+        {
+            Title = request.Name,
+            ContentType = request.ContentType.ToLower(),
+            Date = request.Date.Date,
+            StartTime = request.StartTime,
+            EndTime = request.StartTime.AddMinutes(content.DurationInMinutes()),
+            ContributorId = contributor.Id,
+            Host = contributor.FullName
+            });
+
+        await db.SaveChangesAsync();
+        return Results.Ok("Event added");
+    })
+.RequireAuthorization();
 
 app.MapPut("/schedule/{id:int}/reschedule", async ([FromServices] RadioDbContext db,
                                                    int id,
@@ -216,20 +276,26 @@ app.MapDelete("/schedule/{id:int}", async ([FromServices] RadioDbContext db, int
     return Results.Ok("Deleted");
 });
 
-app.MapPost("/schedule/{id:int}/host", async ([FromServices] RadioDbContext db,
-                                              int id,
-                                              [FromBody] HostGuestRequest request) =>
-{
-    var evt = await db.Schedules.FindAsync(id);
-    if (evt == null) return Results.NotFound();
+app.MapPost("/schedule/{id:int}/host",
+    async ([FromServices] RadioDbContext db,
+           int id,
+           [FromBody] HostGuestRequest request,
+           HttpContext http) =>
+    {
+        var evt = await db.Schedules.FindAsync(id);
+        if (evt == null) return Results.NotFound();
+         var userId = http.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        var contributor = await db.Contributors.FirstOrDefaultAsync(c => c.IdentityUserId == userId);
 
-    if (evt.ContentType.ToLower() != "studio")
-        return Results.BadRequest("Event must be a studio type");
+        if (contributor == null)
+            return Results.BadRequest("Contributor not registered");
 
-    evt.Host = request.Name;
-    await db.SaveChangesAsync();
-    return Results.Ok("Host added");
-});
+        evt.Host = contributor.FullName;
+        evt.ContributorId = contributor.Id;
+
+        await db.SaveChangesAsync();
+        return Results.Ok("Host added");
+    });
 
 app.MapPost("/schedule/{id:int}/guest", async ([FromServices] RadioDbContext db,
                                                int id,
@@ -250,4 +316,91 @@ app.MapPost("/schedule/{id:int}/guest", async ([FromServices] RadioDbContext db,
     return Results.Ok("Guest added");
 });
 
+app.MapPost("/contributors/create",
+    async ([FromServices] RadioDbContext db,
+           HttpContext http,
+           [FromBody] Contributor request) =>
+          {
+        var userId = http.User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+
+        if (string.IsNullOrEmpty(userId))
+            return Results.Unauthorized();
+        request.IdentityUserId = userId;
+           db.Contributors.Add(request);
+        await db.SaveChangesAsync();
+        return Results.Ok(request);
+       })
+      .RequireAuthorization();
+
+
+
+app.MapGet("/contributors/me",
+    async (RadioDbContext db, HttpContext http) =>
+    {
+        var userId = http.User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (userId == null) return Results.Unauthorized();
+
+        var contributor = await db.Contributors
+            .Include(c => c.Schedules)
+            .FirstOrDefaultAsync(c => c.IdentityUserId == userId);
+
+        if (contributor == null)
+            return Results.NotFound();
+
+        return Results.Ok(contributor);
+    })
+.RequireAuthorization();
+
+app.MapGet("/contributors/{id:int}/calculate",
+    async (int id, RadioDbContext db) =>
+    {
+        var events = await db.Schedules
+            .Where(s => s.ContributorId == id)
+            .ToListAsync();
+
+        var totalHours = events.Sum(e =>
+            (decimal)(e.EndTime - e.StartTime).TotalHours);
+
+        var numberOfEvents = events.Count;
+
+        decimal totalAmount =
+            totalHours * 750m +
+            numberOfEvents * 300m;
+
+        decimal totalAmountWithVat = totalAmount * 1.25m;
+
+        return Results.Ok(new
+        {
+            totalHours,
+            numberOfEvents,
+            totalAmount,
+            totalAmountWithVat,
+            month = DateTime.Now.ToString("MMMM")
+        });
+    })
+.RequireAuthorization();
+
 app.Run();
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

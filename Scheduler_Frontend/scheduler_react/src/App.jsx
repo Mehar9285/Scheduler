@@ -7,6 +7,8 @@ import ContactPage from "./pages/ContactPage";
 import RadioNavbar from "./components/RadioNavbar";
 import { ThemeProvider } from "./context/ThemeContext"; 
 import DJPage from "./pages/DjPage";
+import LoginPage from "./pages/LoginPage";
+import ContributorPage from "./pages/ContributorPage";
 
 function App() {
   return (
@@ -23,6 +25,9 @@ function App() {
           <Route path="/schedule" element={<SchedulePage />} />
            <Route path="/about" element={<AboutPage />} />
           <Route path="/contact" element={<ContactPage />} />
+            <Route path="/login" element={<LoginPage />} />
+          <Route path="/contributor" element={<ContributorPage />} />
+
         </Routes>
       </Router>
     </ThemeProvider>

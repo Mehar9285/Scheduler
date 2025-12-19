@@ -1,4 +1,6 @@
-﻿namespace API
+﻿using System.Text.Json.Serialization;
+
+namespace API
 {
     public class ScheduleEntity
     {
@@ -10,5 +12,9 @@
         public DateTime EndTime { get; set; }
         public string? Host { get; set; }
         public string? Guests { get; set; }
+       public int? ContributorId { get; set; }
+        [JsonIgnore]
+        public Contributor? Contributor { get; set; }
+
     }
 }

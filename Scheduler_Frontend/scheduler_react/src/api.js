@@ -7,7 +7,8 @@ export const api = axios.create({
   headers: {
     "Accept": "application/json",
     "Content-Type": "application/json"
-  }
+  },
+  withCredentials: true 
 });
 
 
@@ -26,14 +27,20 @@ export async function addEvent(eventData) {
     throw new Error("Missing fields");
   }
 
-  
-  return axios.post(`${API_URL}/schedule/add`, {
+    return (await api.post("/schedule/add", {
+    date,
+    name,
+    contentType,
+    startTime
+  })).data;
+}
+  /*return axios.post(`${API_URL}/schedule/add`, {
     date,
     name,
     contentType,
     startTime
   });
-}
+}*/
 
 
 export const deleteEvent = async (id) => (await api.delete(`/schedule/${id}`)).data;
@@ -49,3 +56,23 @@ export const addHost = async (id, hostName) =>
 
 export const addGuest = async (id, guestName) =>
   (await api.post(`/schedule/${id}/guest`, { name: guestName })).data;
+
+// Login contributor
+export const login = async (email, password) =>
+  api.post("/login?useCookies=true", { email, password });
+
+export const logout = async () => {
+  return api.post("/logout");
+};
+// Create contributor profile (after login)
+export const createContributor = async (data) => {
+  return (await api.post("/contributors/create", data)).data;
+};
+
+export const getMyContributor = async () =>
+  (await api.get("/contributors/me")).data;
+
+// Calculate salary
+export const calculateContributor = async (id) => {
+  return (await api.get(`/contributors/${id}/calculate`)).data;
+};
